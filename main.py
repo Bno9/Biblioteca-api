@@ -22,7 +22,7 @@
 # http://127.0.0.1:8000/deletar/id
 
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from typing import Optional
@@ -31,6 +31,10 @@ import os
 import asyncio
 import redis 
 import json
+from tasks import somar, fatorial
+from celery_app import celery_app
+from celery.result import AsyncResult
+from kafka_producer import enviar_evento_kafka
 
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
@@ -42,7 +46,11 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = os.getenv("REDIS_PORT", "6379")
+
+redis_client = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0, decode_responses=True)
 
 app = FastAPI(
     title="API de livros",
@@ -130,6 +138,22 @@ async def chamadas_externas():
         "Resultado": [resultado1, resultado2, resultado3]
     }
 
+@app.get("/tarefas/recentes")
+def listar_tarefas_recentes():
+    tarefas_ids = redis_client.lrange("tarefas_ids", 0, -1)
+    tarefas_info = []
+
+    for task_id in tarefas_ids:
+        resultado = AsyncResult(task_id, app=celery_app)
+
+        tarefas_info.append({
+            "task_id": task_id,
+            "status": resultado.status,
+            "resultado": resultado.result if resultado.ready() else None
+        })
+
+    return tarefas_info
+
 @app.get("/debug/redis")
 def ver_livros_redis():
     chaves = redis_client.keys("livro:*")
@@ -142,6 +166,20 @@ def ver_livros_redis():
         livros.append({"Chave": chave, "valor": json.loads(valor), "ttl": ttl})
 
     return livros
+
+@app.post("/calcular/soma")
+def calcular_soma(a: int, b: int):
+    tarefa = somar.delay(a, b)
+    redis_client.lpush("tarefas_ids", tarefa.id)
+    redis_client.ltrim("tarefas_ids", 0, 49)
+    return {"task_id": tarefa.id, "status": "Tarefa de soma iniciada"}
+
+@app.post("/calcular/fatorial")
+def calcular_fatorial(n: int):
+    tarefa = fatorial.delay(n)
+    redis_client.lpush("tarefas_ids", tarefa.id)
+    redis_client.ltrim("tarefas_ids", 0, 49)
+    return {"task_id": tarefa.id, "status": "Tarefa de fatorial iniciada"}
 
 @app.get("/livros")
 def get_livros(
@@ -194,6 +232,12 @@ async def post_livros(livro: Livro, db: Session = Depends(sessao_db), credential
    db.refresh(novo_livro)
 
    salvar_livros_redis(novo_livro.id, livro)
+
+   enviar_evento_kafka("livros_evento", {
+       "evento": "Livro criado", 
+       "id": novo_livro.id, 
+       "nome_livro": livro.nome_livro
+       })
 
    return{"message": "O livro foi criado com sucesso!"}
     
