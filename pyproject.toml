@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 [project]
 name = "fast"
 version = "0.1.0"
@@ -26,3 +27,20 @@ pytest = "^8.2.5"
 
 [tool.pytest.init_options]
 pythonpath = ["."]
+=======
+[project]
+name = "fast"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Bno", email = "Breno_live2005@hotmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "sqlalchemy (>=2.0.41,<3.0.0)",
+    "aiosqlite (>=0.21.0,<0.22.0)",
+    "fastapi[standard] (>=0.115.12,<0.116.0)",
+    "redis (>=6.4.0,<7.0.0)"
+]
+>>>>>>> 05818269784ef8305b45e650a9926ae345dd5818
