@@ -40,7 +40,7 @@ from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./livros.db")
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -270,6 +270,10 @@ async def delete_livros(id: int, db: Session = Depends(sessao_db), credentials: 
     deletar_livros_redis(id)
 
     return{"message":"Seu livro foi deletado com sucesso"}
+
+@app.get("/hello-world")
+def hello_world():
+    return {"message": "Hello, World!"}
 
 
 #testa no postman ou inmsonia

@@ -9,9 +9,9 @@ if ROOT not in sys.path:
 
 
 from celery_app import celery_app
-#from main import app
+from main import app
 
-#client = TestClient(app)
+client = TestClient(app)
 
 class TestOperaçõesMatemáticas:
 
